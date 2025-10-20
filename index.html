@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calorie Tracker</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 1rem;
+      max-width: 800px;
+      margin: auto;
+      background-color: #f5f0e6;
+      color: #2c3e3f;
+    }
+    h1, h2 { margin: 0 0 1rem; }
+    .calendar, .card, .settings {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background-color: #ffffff;
+    }
+    .settings input[type="file"] {
+      display: block;
+      margin-top: 0.5rem;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      border: none;
+      background-color: #1e555c;
+      color: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #163f44;
+    }
+    .hidden { display: none; }
+    .logo {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    .logo img {
+      max-width: 150px;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo">
+    <img src="logo-ct.png" alt="Calorie Tracker Logo">
+  </div>
+
+  <h1>Calorie Tracker</h1>
+  <button onclick="toggleSettings()">Settings</button>
+  <div class="settings hidden" id="settingsPanel">
+    <h2>Settings</h2>
+    <label for="jsonUpload">Upload Daily JSON</label>
+    <input type="file" id="jsonUpload" accept="application/json" />
+    <button onclick="exportData()">Export All Data</button>
+  </div>
+
+  <div class="calendar">
+    <label for="datePicker">Select a date:</label>
+    <input type="date" id="datePicker" />
+  </div>
+
+  <div class="card">
+    <h2 id="selectedDate">Calories for YYYY-MM-DD</h2>
+    <p id="caloriesDisplay">0 kcal</p>
+  </div>
+
+  <script>
+    const data = {};
+    const datePicker = document.getElementById("datePicker");
+    const selectedDateDisplay = document.getElementById("selectedDate");
+    const caloriesDisplay = document.getElementById("caloriesDisplay");
+
+    datePicker.addEventListener("change", () => {
+      const date = datePicker.value;
+      selectedDateDisplay.textContent = `Calories for ${date}`;
+      caloriesDisplay.textContent = `${data[date] || 0} kcal`;
+    });
+
+    document.getElementById("jsonUpload").addEventListener("change", (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target.result);
+          if (json.date && typeof json.total_calories === "number") {
+            data[json.date] = json.total_calories;
+            if (datePicker.value === json.date) {
+              caloriesDisplay.textContent = `${json.total_calories} kcal`;
+            }
+          } else {
+            alert("Invalid JSON format.");
+          }
+        } catch {
+          alert("Failed to parse JSON.");
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    function toggleSettings() {
+      const panel = document.getElementById("settingsPanel");
+      panel.classList.toggle("hidden");
+    }
+
+    function exportData() {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "calorie_data.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log("Service Worker registered"))
+        .catch(err => console.error("Service Worker registration failed:", err));
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "Calorie Tracker",
+  "short_name": "Calories",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f5f0e6",
+  "theme_color": "#1e555c",
+  "description": "Track your daily calorie intake with ease.",
+  "icons": [
+    {
+      "src": "logo-ct.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

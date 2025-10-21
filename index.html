@@ -48,6 +48,40 @@
     .logo img {
       max-width: 150px;
     }
+    .today-card {
+      position: relative;
+      overflow: hidden;
+    }
+    .progress {
+      position: relative;
+      width: 100%;
+      height: 32px;
+      border-radius: 16px;
+      background: #e4f0f1;
+      margin: 1rem 0 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #1e555c;
+    }
+    .progress-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0;
+      border-radius: 16px;
+      background: linear-gradient(90deg, #4caf50, #1e555c);
+      transition: width 0.3s ease;
+    }
+    .progress-fill.over-limit {
+      background: linear-gradient(90deg, #ff6b6b, #c62828);
+    }
+    .progress-label {
+      position: relative;
+      z-index: 1;
+    }
   </style>
 </head>
 <body>
@@ -63,7 +97,16 @@
     <input type="file" id="jsonUpload" accept="application/json" />
     <button onclick="exportData()">Export All Data</button>
   </div>
-<br><br>
+
+  <div class="card today-card">
+    <h2>Today's Intake</h2>
+    <div class="progress" role="img" aria-label="Calories consumed towards daily goal">
+      <div class="progress-fill" id="progressFill"></div>
+      <span class="progress-label" id="progressLabel">0%</span>
+    </div>
+    <p id="todayCalories">0 / 1,500 kcal</p>
+  </div>
+
   <div class="calendar">
     <label for="datePicker">Select a date:</label>
     <input type="date" id="datePicker" />
@@ -75,15 +118,75 @@
   </div>
 
   <script>
-    const data = {};
+    const STORAGE_KEY = "calorieTrackerData";
+    const DAILY_LIMIT = 1500;
+    let data = {};
+
     const datePicker = document.getElementById("datePicker");
     const selectedDateDisplay = document.getElementById("selectedDate");
     const caloriesDisplay = document.getElementById("caloriesDisplay");
+    const progressFill = document.getElementById("progressFill");
+    const progressLabel = document.getElementById("progressLabel");
+    const todayCaloriesDisplay = document.getElementById("todayCalories");
+
+    function loadData() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === "object") {
+            data = parsed;
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to load stored data", error);
+      }
+    }
+
+    function saveData() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (error) {
+        console.warn("Failed to store data", error);
+      }
+    }
+
+    function formatDateForDisplay(date) {
+      return date || "YYYY-MM-DD";
+    }
+
+    function updateSelectedDateDisplay(date) {
+      const calories = date ? (data[date] || 0) : 0;
+      selectedDateDisplay.textContent = `Calories for ${formatDateForDisplay(date)}`;
+      caloriesDisplay.textContent = `${calories.toLocaleString()} kcal`;
+    }
+
+    function updateTodayView() {
+      const today = new Date().toISOString().split("T")[0];
+      const todayCalories = data[today] || 0;
+      const progress = todayCalories / DAILY_LIMIT;
+      const boundedProgress = Math.min(progress, 1);
+      const progressPercent = Math.round(progress * 100);
+
+      progressFill.style.width = `${boundedProgress * 100}%`;
+      progressFill.classList.toggle("over-limit", todayCalories > DAILY_LIMIT);
+      progressLabel.textContent = `${progressPercent}%`;
+      todayCaloriesDisplay.textContent = `${todayCalories.toLocaleString()} / ${DAILY_LIMIT.toLocaleString()} kcal`;
+    }
+
+    function initializeDatePicker() {
+      const today = new Date().toISOString().split("T")[0];
+      datePicker.value = today;
+      updateSelectedDateDisplay(today);
+    }
+
+    loadData();
+    initializeDatePicker();
+    updateTodayView();
 
     datePicker.addEventListener("change", () => {
       const date = datePicker.value;
-      selectedDateDisplay.textContent = `Calories for ${date}`;
-      caloriesDisplay.textContent = `${data[date] || 0} kcal`;
+      updateSelectedDateDisplay(date);
     });
 
     document.getElementById("jsonUpload").addEventListener("change", (event) => {
@@ -96,15 +199,19 @@
           const json = JSON.parse(e.target.result);
           if (json.date && typeof json.total_calories === "number") {
             data[json.date] = json.total_calories;
+            saveData();
             if (datePicker.value === json.date) {
-              caloriesDisplay.textContent = `${json.total_calories} kcal`;
+              updateSelectedDateDisplay(json.date);
             }
+            updateTodayView();
+            alert(`Logged ${json.total_calories} kcal for ${json.date}.`);
           } else {
             alert("Invalid JSON format.");
           }
         } catch {
           alert("Failed to parse JSON.");
         }
+        event.target.value = "";
       };
       reader.readAsText(file);
     });

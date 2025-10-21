@@ -182,6 +182,11 @@
       return Math.round(value * 100) / 100;
     }
 
+    function getLocalDateString(date = new Date()) {
+      const pad = (value) => String(value).padStart(2, "0");
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    }
+
     function loadData() {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
@@ -216,7 +221,7 @@
         console.warn("Failed to load current day", error);
       }
 
-      currentDay = new Date().toISOString().split("T")[0];
+      currentDay = getLocalDateString();
       saveCurrentDay();
       ensureCurrentDayEntry();
     }
@@ -277,7 +282,7 @@
     function advanceDay() {
       const currentDate = new Date(`${currentDay}T00:00:00`);
       currentDate.setDate(currentDate.getDate() + 1);
-      currentDay = currentDate.toISOString().split("T")[0];
+      currentDay = getLocalDateString(currentDate);
       data[currentDay] = 0;
       saveData();
       saveCurrentDay();

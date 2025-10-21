@@ -52,6 +52,15 @@
       position: relative;
       overflow: hidden;
     }
+    .today-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .today-card-header button {
+      margin-top: 0;
+    }
     .progress {
       position: relative;
       width: 100%;
@@ -98,7 +107,10 @@
   </div>
 <br><br>
   <div class="card today-card">
-    <h2>Today's Intake</h2>
+    <div class="today-card-header">
+      <h2>Today's Intake</h2>
+      <button id="endDayButton" type="button">End Day</button>
+    </div>
     <div class="progress" role="img" aria-label="Calories consumed towards daily goal">
       <div class="progress-fill" id="progressFill"></div>
       <span class="progress-label" id="progressLabel">0%</span>
@@ -119,7 +131,9 @@
   <script>
     const STORAGE_KEY = "calorieTrackerData";
     const DAILY_LIMIT = 1500;
+    const CURRENT_DAY_KEY = "calorieTrackerCurrentDay";
     let data = {};
+    let currentDay = null;
 
     const datePicker = document.getElementById("datePicker");
     const selectedDateDisplay = document.getElementById("selectedDate");
@@ -150,6 +164,38 @@
       }
     }
 
+    function loadCurrentDay() {
+      try {
+        const storedDay = localStorage.getItem(CURRENT_DAY_KEY);
+        if (storedDay) {
+          currentDay = storedDay;
+          ensureCurrentDayEntry();
+          return;
+        }
+      } catch (error) {
+        console.warn("Failed to load current day", error);
+      }
+
+      currentDay = new Date().toISOString().split("T")[0];
+      saveCurrentDay();
+      ensureCurrentDayEntry();
+    }
+
+    function saveCurrentDay() {
+      try {
+        localStorage.setItem(CURRENT_DAY_KEY, currentDay);
+      } catch (error) {
+        console.warn("Failed to persist current day", error);
+      }
+    }
+
+    function ensureCurrentDayEntry() {
+      if (!(currentDay in data)) {
+        data[currentDay] = 0;
+        saveData();
+      }
+    }
+
     function formatDateForDisplay(date) {
       return date || "YYYY-MM-DD";
     }
@@ -161,8 +207,7 @@
     }
 
     function updateTodayView() {
-      const today = new Date().toISOString().split("T")[0];
-      const todayCalories = data[today] || 0;
+      const todayCalories = data[currentDay] || 0;
       const progress = todayCalories / DAILY_LIMIT;
       const boundedProgress = Math.min(progress, 1);
       const progressPercent = Math.round(progress * 100);
@@ -174,12 +219,12 @@
     }
 
     function initializeDatePicker() {
-      const today = new Date().toISOString().split("T")[0];
-      datePicker.value = today;
-      updateSelectedDateDisplay(today);
+      datePicker.value = currentDay;
+      updateSelectedDateDisplay(currentDay);
     }
 
     loadData();
+    loadCurrentDay();
     initializeDatePicker();
     updateTodayView();
 
@@ -229,6 +274,20 @@
       link.click();
       URL.revokeObjectURL(url);
     }
+
+    function advanceDay() {
+      const currentDate = new Date(`${currentDay}T00:00:00`);
+      currentDate.setDate(currentDate.getDate() + 1);
+      currentDay = currentDate.toISOString().split("T")[0];
+      data[currentDay] = 0;
+      saveData();
+      saveCurrentDay();
+      datePicker.value = currentDay;
+      updateSelectedDateDisplay(currentDay);
+      updateTodayView();
+    }
+
+    document.getElementById("endDayButton").addEventListener("click", advanceDay);
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js')

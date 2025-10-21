@@ -16,16 +16,12 @@
       color: #2c3e3f;
     }
     h1, h2 { margin: 0 0 1rem; }
-    .calendar, .card, .settings {
+    .calendar, .card {
       border: 1px solid #ccc;
       border-radius: 8px;
       padding: 1rem;
       margin-bottom: 1rem;
       background-color: #ffffff;
-    }
-    .settings input[type="file"] {
-      display: block;
-      margin-top: 0.5rem;
     }
     button {
       margin-top: 1rem;
@@ -60,6 +56,37 @@
     }
     .today-card-header button {
       margin-top: 0;
+    }
+    .calorie-input {
+      margin-top: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .input-row {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .calorie-input input[type="number"] {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    .calorie-input button {
+      margin-top: 0;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }
     .progress {
       position: relative;
@@ -99,13 +126,6 @@
   </div>
 
   <h1>Calorie Tracker</h1>
-  <button onclick="toggleSettings()">Import/Export Data<br></button>
-  <div class="settings hidden" id="settingsPanel">
-    <label for="jsonUpload">Upload Daily JSON</label>
-    <input type="file" id="jsonUpload" accept="application/json" />
-    <button onclick="exportData()">Export All Data</button>
-  </div>
-<br><br>
   <div class="card today-card">
     <div class="today-card-header">
       <h2>Today's Intake</h2>
@@ -116,6 +136,11 @@
       <span class="progress-label" id="progressLabel">0%</span>
     </div>
     <p id="todayCalories">0 / 1,500 kcal</p>
+    <div class="calorie-input">
+      <label class="sr-only" for="addCaloriesInput">Calories to add</label>
+      <input id="addCaloriesInput" type="number" min="0" step="1" placeholder="Add calories" />
+      <button id="addCaloriesButton" type="button">Add</button>
+    </div>
   </div>
 
   <div class="calendar">
@@ -126,6 +151,13 @@
   <div class="card">
     <h2 id="selectedDate">Calories for YYYY-MM-DD</h2>
     <p id="caloriesDisplay">0 kcal</p>
+    <div class="calorie-input">
+      <label for="selectedCaloriesInput">Update calories for this day:</label>
+      <div class="input-row">
+        <input id="selectedCaloriesInput" type="number" min="0" step="1" />
+        <button id="saveSelectedCalories" type="button">Save</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -138,9 +170,17 @@
     const datePicker = document.getElementById("datePicker");
     const selectedDateDisplay = document.getElementById("selectedDate");
     const caloriesDisplay = document.getElementById("caloriesDisplay");
+    const selectedCaloriesInput = document.getElementById("selectedCaloriesInput");
+    const saveSelectedCaloriesButton = document.getElementById("saveSelectedCalories");
     const progressFill = document.getElementById("progressFill");
     const progressLabel = document.getElementById("progressLabel");
     const todayCaloriesDisplay = document.getElementById("todayCalories");
+    const addCaloriesInput = document.getElementById("addCaloriesInput");
+    const addCaloriesButton = document.getElementById("addCaloriesButton");
+
+    function sanitizeCalories(value) {
+      return Math.round(value * 100) / 100;
+    }
 
     function loadData() {
       try {
@@ -204,6 +244,7 @@
       const calories = date ? (data[date] || 0) : 0;
       selectedDateDisplay.textContent = `Calories for ${formatDateForDisplay(date)}`;
       caloriesDisplay.textContent = `${calories.toLocaleString()} kcal`;
+      selectedCaloriesInput.value = date ? calories : "";
     }
 
     function updateTodayView() {
@@ -233,48 +274,6 @@
       updateSelectedDateDisplay(date);
     });
 
-    document.getElementById("jsonUpload").addEventListener("change", (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const json = JSON.parse(e.target.result);
-          if (json.date && typeof json.total_calories === "number") {
-            data[json.date] = json.total_calories;
-            saveData();
-            if (datePicker.value === json.date) {
-              updateSelectedDateDisplay(json.date);
-            }
-            updateTodayView();
-            alert(`Logged ${json.total_calories} kcal for ${json.date}.`);
-          } else {
-            alert("Invalid JSON format.");
-          }
-        } catch {
-          alert("Failed to parse JSON.");
-        }
-        event.target.value = "";
-      };
-      reader.readAsText(file);
-    });
-
-    function toggleSettings() {
-      const panel = document.getElementById("settingsPanel");
-      panel.classList.toggle("hidden");
-    }
-
-    function exportData() {
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "calorie_data.json";
-      link.click();
-      URL.revokeObjectURL(url);
-    }
-
     function advanceDay() {
       const currentDate = new Date(`${currentDay}T00:00:00`);
       currentDate.setDate(currentDate.getDate() + 1);
@@ -288,6 +287,57 @@
     }
 
     document.getElementById("endDayButton").addEventListener("click", advanceDay);
+
+    function addCaloriesToToday(amount) {
+      if (!Number.isFinite(amount) || amount <= 0) {
+        alert("Please enter a calorie amount greater than zero.");
+        return;
+      }
+
+      ensureCurrentDayEntry();
+      const updated = (data[currentDay] || 0) + sanitizeCalories(amount);
+      data[currentDay] = sanitizeCalories(updated);
+      saveData();
+      updateTodayView();
+
+      if (datePicker.value === currentDay) {
+        updateSelectedDateDisplay(currentDay);
+      }
+    }
+
+    addCaloriesButton.addEventListener("click", () => {
+      const amount = Number(addCaloriesInput.value);
+      addCaloriesToToday(amount);
+      addCaloriesInput.value = "";
+    });
+
+    addCaloriesInput.addEventListener("keyup", (event) => {
+      if (event.key === "Enter") {
+        addCaloriesButton.click();
+      }
+    });
+
+    saveSelectedCaloriesButton.addEventListener("click", () => {
+      const date = datePicker.value;
+      if (!date) {
+        alert("Please choose a date to update.");
+        return;
+      }
+
+      const value = Number(selectedCaloriesInput.value);
+      if (!Number.isFinite(value) || value < 0) {
+        alert("Please enter a valid calorie amount (zero or more).");
+        return;
+      }
+
+      data[date] = sanitizeCalories(value);
+      saveData();
+      updateSelectedDateDisplay(date);
+
+      if (date === currentDay) {
+        updateTodayView();
+      }
+    });
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('service-worker.js')
